@@ -28,6 +28,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+ARG WORDPRESS_URL
+ARG WORDPRESS_HOSTNAME
+ENV WORDPRESS_URL=$WORDPRESS_URL
+ENV WORDPRESS_HOSTNAME=$WORDPRESS_HOSTNAME
+
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
