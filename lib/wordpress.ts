@@ -13,10 +13,11 @@ import type {
 } from "./wordpress.d";
 
 // Single source of truth for WordPress configuration
-const baseUrl = process.env.WORDPRESS_URL;
-const isConfigured = Boolean(baseUrl);
+// Lazy evaluation ensures .env.local is always read after module load
+const getBaseUrl = () => process.env.WORDPRESS_URL;
+const getIsConfigured = () => Boolean(getBaseUrl());
 
-if (!isConfigured) {
+if (!getIsConfigured()) {
   console.warn(
     "WORDPRESS_URL environment variable is not defined - WordPress features will be unavailable"
   );
@@ -44,7 +45,8 @@ export interface WordPressResponse<T> {
   headers: WordPressPaginationHeaders;
 }
 
-const USER_AGENT = "Next.js WordPress Client";
+// Hostinger WAF blocks "Next.js WordPress Client" with revalidate headers, returning 0 results
+const USER_AGENT = "Mozilla/5.0 (compatible; WordPress REST API Client)";
 const CACHE_TTL = 3600; // 1 hour
 
 // Core fetch - throws on error (for functions that require data)
@@ -53,6 +55,7 @@ async function wordpressFetch<T>(
   query?: Record<string, any>,
   tags: string[] = ["wordpress"]
 ): Promise<T> {
+  const baseUrl = getBaseUrl();
   if (!baseUrl) {
     throw new Error("WordPress URL not configured");
   }
@@ -82,7 +85,7 @@ async function wordpressFetchGraceful<T>(
   query?: Record<string, any>,
   tags: string[] = ["wordpress"]
 ): Promise<T> {
-  if (!isConfigured) return fallback;
+  if (!getIsConfigured()) return fallback;
 
   try {
     return await wordpressFetch<T>(path, query, tags);
@@ -98,6 +101,7 @@ async function wordpressFetchPaginated<T>(
   query?: Record<string, any>,
   tags: string[] = ["wordpress"]
 ): Promise<WordPressResponse<T>> {
+  const baseUrl = getBaseUrl();
   if (!baseUrl) {
     throw new Error("WordPress URL not configured");
   }
@@ -137,7 +141,7 @@ async function wordpressFetchPaginatedGraceful<T>(
     headers: { total: 0, totalPages: 0 },
   };
 
-  if (!isConfigured) return emptyResponse;
+  if (!getIsConfigured()) return emptyResponse;
 
   try {
     return await wordpressFetchPaginated<T[]>(path, query, tags);
@@ -377,7 +381,7 @@ export async function searchAuthors(query: string): Promise<Author[]> {
 // Fetches ALL post slugs for generateStaticParams
 // Returns empty array if WordPress is unavailable (allows build to succeed)
 export async function getAllPostSlugs(): Promise<{ slug: string }[]> {
-  if (!isConfigured) return [];
+  if (!getIsConfigured()) return [];
 
   try {
     const allSlugs: { slug: string }[] = [];
@@ -407,7 +411,7 @@ export async function getAllPostSlugs(): Promise<{ slug: string }[]> {
 export async function getAllPostsForSitemap(): Promise<
   { slug: string; modified: string }[]
 > {
-  if (!isConfigured) return [];
+  if (!getIsConfigured()) return [];
 
   try {
     const allPosts: { slug: string; modified: string }[] = [];
@@ -528,7 +532,7 @@ export async function getNavigation(): Promise<WPMenuItem[]> {
 
   if (navigations.length === 0) return [];
 
-  let items = parseNavigationHtml(navigations[0].content.rendered, baseUrl);
+  let items = parseNavigationHtml(navigations[0].content.rendered, getBaseUrl());
 
   // Apply overrides (rename labels, remap hrefs)
   items = items.map((item) => {
